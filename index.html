@@ -1,0 +1,295 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>360 Cafe | Integrated Management System</title>
+    
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.2/gsap.min.js"></script>
+
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;600;800&display=swap');
+        :root { --accent: #d4af37; }
+        body { background-color: #050505; color: #ffffff; font-family: 'Plus Jakarta Sans', sans-serif; margin: 0; overflow: hidden; }
+        .glass { background: rgba(255, 255, 255, 0.03); backdrop-filter: blur(15px); border: 1px solid rgba(255, 255, 255, 0.08); }
+        .active-nav { background: rgba(212, 175, 55, 0.2); border-left: 4px solid var(--accent); color: white !important; }
+        #canvas-container { position: fixed; top: 0; left: 0; width: 100%; height: 100%; z-index: -1; }
+        .view-section { display: none; }
+        .view-section.active { display: block; }
+        .toast { pointer-events: none; transform: translateY(100px); opacity: 0; }
+    </style>
+</head>
+<body>
+
+    <div id="canvas-container"></div>
+
+    <div id="toast" class="fixed bottom-10 right-10 glass px-6 py-4 rounded-2xl flex items-center gap-3 z-50 toast">
+        <span id="toast-icon">✅</span>
+        <span id="toast-msg">Action Successful</span>
+    </div>
+
+    <div class="flex h-screen w-full p-4 gap-4 box-border">
+        
+        <aside id="sidebar" class="w-72 glass rounded-[2.5rem] flex flex-col p-6 z-10 transition-all duration-500 relative">
+            <button id="toggle-btn" class="absolute -right-3 top-10 bg-[#d4af37] text-black rounded-full p-1 hover:scale-110 transition z-20">
+                <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m15 18-6-6 6-6"/></svg>
+            </button>
+
+            <div class="mb-10 flex items-center gap-4 overflow-hidden px-2">
+                <div class="min-w-[40px] h-10 rounded-full border-2 border-[#d4af37] flex items-center justify-center font-bold text-sm text-[#d4af37]">360</div>
+                <h1 class="nav-text text-xl font-extrabold tracking-tighter">360 CAFE</h1>
+            </div>
+
+            <nav class="flex-1 space-y-2 overflow-hidden">
+                <div class="nav-item active-nav flex items-center gap-4 p-4 rounded-2xl cursor-pointer hover:bg-white/5 transition text-gray-400" onclick="switchView('overview', this)">
+                    <span class="text-xl">📊</span><span class="nav-text font-semibold">Dashboard</span>
+                </div>
+                <div class="nav-item flex items-center gap-4 p-4 rounded-2xl cursor-pointer hover:bg-white/5 transition text-gray-400" onclick="switchView('bookings', this)">
+                    <span class="text-xl">📅</span><span class="nav-text font-semibold">Reservations</span>
+                </div>
+                <div class="nav-item flex items-center gap-4 p-4 rounded-2xl cursor-pointer hover:bg-white/5 transition text-gray-400" onclick="switchView('inventory', this)">
+                    <span class="text-xl">📦</span><span class="nav-text font-semibold">Inventory</span>
+                </div>
+                <div class="nav-item flex items-center gap-4 p-4 rounded-2xl cursor-pointer hover:bg-white/5 transition text-gray-400" onclick="showToast('Financial Reports Generating...', '📉')">
+                    <span class="text-xl">💰</span><span class="nav-text font-semibold">Revenue</span>
+                </div>
+            </nav>
+
+            <div class="mt-auto p-4 glass rounded-3xl flex items-center gap-4 overflow-hidden border-none bg-white/5">
+                <div class="min-w-[40px] h-10 rounded-full bg-gradient-to-tr from-[#d4af37] to-yellow-200"></div>
+                <div class="nav-text">
+                    <p class="text-xs font-bold">Admin Panel</p>
+                    <p class="text-[10px] text-green-400">● Online</p>
+                </div>
+            </div>
+        </aside>
+
+        <main class="flex-1 flex flex-col gap-4 overflow-hidden">
+            
+            <header class="flex justify-between items-center py-2 px-2">
+                <div class="flex-1 max-w-xl relative">
+                    <input type="text" id="main-search" placeholder="Search orders, tables, or stock..." class="w-full glass bg-white/5 border-none rounded-2xl py-3 px-12 focus:ring-2 ring-[#d4af37] outline-none">
+                    <span class="absolute left-4 top-3.5 opacity-40">🔍</span>
+                </div>
+                <div class="flex items-center gap-4 ml-4">
+                    <div class="glass p-3 rounded-2xl cursor-pointer hover:bg-white/10 relative" onclick="showToast('No new alerts', '🔔')">
+                        <span class="absolute top-2 right-2 w-2 h-2 bg-red-500 rounded-full"></span>
+                        🔔
+                    </div>
+                    <button class="bg-[#d4af37] text-black font-bold px-6 py-3 rounded-2xl hover:brightness-110 transition" onclick="showToast('New Reservation Form Opened', '📝')">+ New Entry</button>
+                </div>
+            </header>
+
+            <div id="view-container" class="flex-1 overflow-y-auto pr-2">
+                
+                <section id="view-overview" class="view-section active">
+                    <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+                        <div class="glass p-8 rounded-[2.5rem] relative overflow-hidden group">
+                            <div class="absolute -right-4 -top-4 w-24 h-24 bg-[#d4af37]/10 rounded-full group-hover:scale-150 transition duration-700"></div>
+                            <p class="text-xs uppercase tracking-widest text-gray-500">Live Revenue</p>
+                            <h3 class="text-4xl font-extrabold mt-2 tracking-tighter" id="rev-counter">$0</h3>
+                        </div>
+                        <div class="glass p-8 rounded-[2.5rem]">
+                            <p class="text-xs uppercase tracking-widest text-gray-500">Table Occupancy</p>
+                            <h3 class="text-4xl font-extrabold mt-2 tracking-tighter">82%</h3>
+                        </div>
+                        <div class="glass p-8 rounded-[2.5rem]">
+                            <p class="text-xs uppercase tracking-widest text-gray-500">Staff on Duty</p>
+                            <h3 class="text-4xl font-extrabold mt-2 tracking-tighter">12 <span class="text-sm font-light text-gray-500">/ 15</span></h3>
+                        </div>
+                    </div>
+
+                    <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                        <div class="glass rounded-[2.5rem] p-8 h-80">
+                            <div class="flex justify-between mb-6">
+                                <h4 class="font-bold">Hourly Traffic</h4>
+                                <select class="bg-transparent text-xs border border-white/10 rounded px-2">
+                                    <option>Today</option>
+                                    <option>Yesterday</option>
+                                </select>
+                            </div>
+                            <div class="flex items-end gap-3 h-48">
+                                <div class="flex-1 bg-white/5 rounded-t-xl h-1/2"></div>
+                                <div class="flex-1 bg-white/10 rounded-t-xl h-3/4"></div>
+                                <div class="flex-1 bg-[#d4af37] rounded-t-xl h-full shadow-[0_0_30px_rgba(212,175,55,0.2)]"></div>
+                                <div class="flex-1 bg-white/10 rounded-t-xl h-2/3"></div>
+                                <div class="flex-1 bg-white/5 rounded-t-xl h-1/3"></div>
+                            </div>
+                        </div>
+                        <div class="glass rounded-[2.5rem] p-8">
+                            <h4 class="font-bold mb-6">Real-time Orders</h4>
+                            <div class="space-y-4" id="order-list">
+                                </div>
+                        </div>
+                    </div>
+                </section>
+
+                <section id="view-bookings" class="view-section">
+                    <div class="glass rounded-[2.5rem] p-8">
+                        <h3 class="text-2xl font-bold mb-6">Upcoming Reservations</h3>
+                        <table class="w-full text-left">
+                            <thead class="text-gray-500 text-xs uppercase tracking-wider">
+                                <tr>
+                                    <th class="pb-4">Guest</th>
+                                    <th class="pb-4">Table</th>
+                                    <th class="pb-4">Time</th>
+                                    <th class="pb-4">Status</th>
+                                    <th class="pb-4">Action</th>
+                                </tr>
+                            </thead>
+                            <tbody class="space-y-4">
+                                <tr class="border-t border-white/5">
+                                    <td class="py-4">John Doe</td>
+                                    <td>T-04</td>
+                                    <td>19:30</td>
+                                    <td><span class="px-3 py-1 bg-green-500/20 text-green-400 rounded-full text-xs">Confirmed</span></td>
+                                    <td><button class="hover:text-[#d4af37]" onclick="showToast('Checking in John...', '✅')">Check-in</button></td>
+                                </tr>
+                                <tr class="border-t border-white/5">
+                                    <td class="py-4">Sarah Smith</td>
+                                    <td>T-12</td>
+                                    <td>20:00</td>
+                                    <td><span class="px-3 py-1 bg-yellow-500/20 text-yellow-400 rounded-full text-xs">Pending</span></td>
+                                    <td><button class="hover:text-[#d4af37]" onclick="showToast('Contacting Guest...', '📞')">Remind</button></td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </section>
+
+                <section id="view-inventory" class="view-section">
+                    <div class="grid grid-cols-1 md:grid-cols-4 gap-4 mb-8">
+                        <div class="glass p-6 rounded-3xl text-center">
+                            <p class="text-gray-500 text-xs">Coffee Beans</p>
+                            <p class="text-xl font-bold">42 kg</p>
+                        </div>
+                        <div class="glass p-6 rounded-3xl text-center border-red-500/30 border">
+                            <p class="text-red-400 text-xs">Milk Supply</p>
+                            <p class="text-xl font-bold">08 L</p>
+                        </div>
+                        <div class="glass p-6 rounded-3xl text-center">
+                            <p class="text-gray-500 text-xs">Sugar Packets</p>
+                            <p class="text-xl font-bold">1.2k</p>
+                        </div>
+                        <div class="glass p-6 rounded-3xl text-center">
+                            <p class="text-gray-500 text-xs">Pastries</p>
+                            <p class="text-xl font-bold">14</p>
+                        </div>
+                    </div>
+                </section>
+
+            </div>
+        </main>
+    </div>
+
+    <script>
+        // --- VIEW SWITCHER LOGIC ---
+        function switchView(viewId, el) {
+            // Update Sidebar UI
+            document.querySelectorAll('.nav-item').forEach(item => item.classList.remove('active-nav'));
+            el.classList.add('active-nav');
+
+            // Animate View Transition
+            const activeView = document.querySelector('.view-section.active');
+            const targetView = document.getElementById('view-bookings'); // Fallback check
+
+            gsap.to('.view-section.active', { opacity: 0, y: 20, duration: 0.3, onComplete: () => {
+                document.querySelectorAll('.view-section').forEach(s => s.classList.remove('active'));
+                const nextView = document.getElementById(`view-${viewId}`);
+                nextView.classList.add('active');
+                gsap.fromTo(nextView, { opacity: 0, y: 20 }, { opacity: 1, y: 0, duration: 0.5 });
+            }});
+        }
+
+        // --- TOAST NOTIFICATION ---
+        function showToast(msg, icon = '✅') {
+            const toast = document.getElementById('toast');
+            document.getElementById('toast-msg').innerText = msg;
+            document.getElementById('toast-icon').innerText = icon;
+            
+            const tl = gsap.timeline();
+            tl.to(toast, { opacity: 1, y: 0, duration: 0.4, ease: "back.out" })
+              .to(toast, { opacity: 0, y: 100, duration: 0.4, delay: 2, ease: "power2.in" });
+        }
+
+        // --- SIDEBAR COLLAPSE ---
+        let isCollapsed = false;
+        document.getElementById('toggle-btn').addEventListener('click', () => {
+            isCollapsed = !isCollapsed;
+            gsap.to('#sidebar', { width: isCollapsed ? 95 : 288, duration: 0.6, ease: "expo.inOut" });
+            gsap.to('.nav-text', { opacity: isCollapsed ? 0 : 1, x: isCollapsed ? -20 : 0, duration: 0.3 });
+            gsap.to('#toggle-btn', { rotate: isCollapsed ? 180 : 0, duration: 0.6 });
+        });
+
+        // --- LIVE DATA SIMULATION ---
+        function updateOrders() {
+            const orders = [
+                { name: 'Iced Americano', table: 'T-04', price: '$4.50' },
+                { name: 'Signature Blend', table: 'T-02', price: '$6.00' },
+                { name: 'Croissant', table: 'T-09', price: '$3.50' }
+            ];
+            const list = document.getElementById('order-list');
+            list.innerHTML = orders.map(o => `
+                <div class="flex justify-between items-center p-4 border-b border-white/5 hover:bg-white/5 rounded-xl transition cursor-pointer">
+                    <div>
+                        <p class="text-sm font-bold">${o.name}</p>
+                        <p class="text-[10px] text-gray-500">Table ${o.table}</p>
+                    </div>
+                    <span class="text-[#d4af37] font-bold">${o.price}</span>
+                </div>
+            `).join('');
+        }
+
+        // --- THREE.JS BACKGROUND ---
+        const scene = new THREE.Scene();
+        const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
+        const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        document.getElementById('canvas-container').appendChild(renderer.domElement);
+
+        const geometry = new THREE.TorusGeometry(10, 3, 16, 100);
+        const material = new THREE.MeshStandardMaterial({ color: 0xd4af37, wireframe: true, transparent: true, opacity: 0.05 });
+        const torus = new THREE.Mesh(geometry, material);
+        scene.add(torus);
+
+        scene.add(new THREE.AmbientLight(0xffffff, 0.5));
+        const pLight = new THREE.PointLight(0xd4af37, 1);
+        pLight.position.set(10, 10, 10);
+        scene.add(pLight);
+
+        camera.position.z = 20;
+
+        function animate() {
+            requestAnimationFrame(animate);
+            torus.rotation.x += 0.001;
+            torus.rotation.y += 0.002;
+            renderer.render(scene, camera);
+        }
+        animate();
+
+        // --- INITIALIZATION ---
+        window.onload = () => {
+            updateOrders();
+            // Counter Animation
+            gsap.to("#rev-counter", {
+                innerText: 12450,
+                duration: 2,
+                snap: { innerText: 1 },
+                onUpdate: function() {
+                    document.getElementById("rev-counter").innerHTML = "$" + Math.ceil(this.targets()[0].innerText).toLocaleString();
+                }
+            });
+            gsap.from(".glass", { opacity: 0, y: 50, duration: 1, stagger: 0.1, ease: "power4.out" });
+        };
+
+        // Resize
+        window.addEventListener('resize', () => {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+        });
+    </script>
+</body>
+</html>
